@@ -1,6 +1,6 @@
 # do not upload results
-result/
-result_aug/
+result*/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
