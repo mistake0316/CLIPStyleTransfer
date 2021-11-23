@@ -3,9 +3,9 @@ import clip
 
 class CLIPLoss(torch.nn.Module):
 
-    def __init__(self, img_size):
+    def __init__(self, img_size, device="cuda"):
         super(CLIPLoss, self).__init__()
-        self.model, self.preprocess = clip.load("ViT-B/32", device="cuda")
+        self.model, self.preprocess = clip.load("ViT-B/32", device=device)
         self.upsample = torch.nn.Upsample(scale_factor=7)
         self.avg_pool = torch.nn.AvgPool2d(kernel_size=img_size//32)
         self.norm = self.preprocess.transforms[-1]
