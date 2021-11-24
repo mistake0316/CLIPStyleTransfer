@@ -1,6 +1,6 @@
 # do not upload results
 result*/
-
+*.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
