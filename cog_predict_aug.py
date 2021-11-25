@@ -19,9 +19,7 @@ import torchvision.transforms as T
 from tqdm.auto import tqdm
 
 import numpy as np
-import matplotlib.pyplot as plt
 
-import imageio
 
 from pathlib import Path
 import tempfile
@@ -33,14 +31,14 @@ class Predictor(cog.Predictor):
 
       #@title load models
       print("loading models")
-      device = ["cpu", "cuda"][torch.cuda.is_available()]
+      self.device = device = ["cpu", "cuda"][torch.cuda.is_available()]
       print(f"device : {device}")
       self.SP = pretrainedStylePredictor().to(device).eval()
       self.G = pretrainedGhiasi().to(device).eval()
       self.clip_loss = CLIPLoss(384, device).eval()
       print("done")
             
-    @cog.input("image", type=cog.Path, help="input image")
+    @cog.input("image", type=Path, help="input image")
     @cog.input("text", type=str, help="prompt text")
     @cog.input("optimize_steps", type=int, default=100, help="total steps")
     @cog.input("display_every_step", type=int, default=10, help="")
@@ -48,29 +46,30 @@ class Predictor(cog.Predictor):
     @cog.input("short_edge_target_len", type=int, default=384, help="the short edge size if resize_flag is True")
     @cog.input("center_crop_flag", type=bool, default=True, options=[True, False], help="center crop content image or not")
     @cog.input("output_aug_flag", type=bool, default=True, options=[True, False], help="augment before compute clip loss")
-    @cog.input("output_aug_time", type=int, default=4, help="augment times if output_aug_flag is True")
-    @cog.input("style_code_aug_flag", default=True, options=[True, False], help="resize image or not")
-    @cog.input("style_code_aug_gaussian_noise_std", type=float, default=0.01,
-               help="feed_code = code * (1+noise_std*torch.randn_like(code))")
-    @cog.input("style_code_aug_time", type=int, default=4, help="augment times if style_code_aug_flag is True")
+    @cog.input("output_aug_time", type=int, default=8, help="augment times if output_aug_flag is True")
+#     @cog.input("style_code_aug_flag", type=bool, default=True, options=[True, False], help="resize image or not")
+#     @cog.input("style_code_aug_gaussian_noise_std", type=float, default=0.01,
+#                help="feed_code = code * (1+noise_std*torch.randn_like(code))")
     @cog.input("lr", type=float, default=0.01)
     def predict(
       self,
       image, text,
       optimize_steps, display_every_step,
-      resize_flag, short_edge_target_size,
+      resize_flag, short_edge_target_len,
       center_crop_flag,
       output_aug_flag, output_aug_time,
-      style_code_aug_flag, style_code_aug_gaussian_noise_std, style_code_aug_time,
+#       style_code_aug_flag, style_code_aug_gaussian_noise_std,
       lr,
     ):
       """Run a single prediction on the model"""
+      device = self.device
       out_path = Path(tempfile.mkdtemp()) / "out.png"
       
       SP = self.SP
       G = self.G
       clip_loss = self.clip_loss
       
+      print("loading content")
       content = Image.open(image).convert('RGB')
       
       style_preprocess = torch.nn.Sequential(
@@ -79,14 +78,14 @@ class Predictor(cog.Predictor):
         torch.nn.AvgPool2d(kernel_size=3,stride=1)
       )
       
-      short_edge_len = min(content.size)
-      clip_loss.avg_pool.kernel_size = clip_loss.avg_pool.stride = short_edge_len
+      short_edge_len = int(np.ceil(min(content.size)/128)*128) if not resize_flag else 384
+      clip_loss.avg_pool.kernel_size = clip_loss.avg_pool.stride = short_edge_len//32
       
       content_preprocess = torch.nn.Sequential()
-      if resize_flag:
-        content_preprocess.add_module("resize", T.Resize(short_edge_len,))
+      center_crop = T.CenterCrop(short_edge_len)
+      content_preprocess.add_module("resize", T.Resize(short_edge_len,))
       if center_crop_flag:
-        content_preprocess.add_module("center_crop",T.CenterCrop(short_edge_len),)
+        content_preprocess.add_module("center_crop",center_crop,)
       
       Aug = torch.nn.Sequential(
         T.RandomAffine(
@@ -100,10 +99,10 @@ class Predictor(cog.Predictor):
           saturation=0.1,
           hue=0.1,
         ),
-        T.RandomCrop(short_edge_target_size),
+        T.RandomCrop(short_edge_target_len),
       )
 
-      aug_fun = lambda img: torch.cat([Aug(img) for _ in range(aug_times)])
+      aug_fun = lambda img: torch.cat([Aug(img) for _ in range(output_aug_time)])
       
       #@title reconstruct with Ghiasi's style transfer model
       content_tensor = T.ToTensor()(content)
@@ -126,32 +125,38 @@ class Predictor(cog.Predictor):
       print(text)
       tokens = clip.tokenize([text]).to(device)
       print(tokens)
-      code = style_code.clone()
+      code = initial_style_code.clone()
       code.requires_grad_()
       optimizer = torch.optim.Adam([code],lr=lr)
-
-      for idx in tqdm(range(optimize_steps)):
-        if style_code_aug_flag:
-          feed_code = code.repeat(style_code_aug_time-1, 1)
-          feed_code = feed_code * (1 + style_code_aug_gaussian_noise_std*torch.randn_like(feed_code))
-          feed_code = torch.cat(code, feed_code)
-        else:
-          feed_code = code
+      
+      def compute_step():
+#         if style_code_aug_flag:
+#           feed_code = code * (1 + style_code_aug_gaussian_noise_std*torch.randn_like(code))
+#         else:
+#           feed_code = code
+        feed_code = code
         
         result = G(content_tensor, feed_code)
-
-        aug_result = aug_fun(result)
-
+        if output_aug_flag:
+          aug_result = aug_fun(result)
+        else:
+          aug_result = result
+        
         c_loss = torch.mean(clip_loss(center_crop(aug_result), tokens))
 
         loss = c_loss
+        return loss, result
+    
+      for idx in range(optimize_steps):
+        loss, result = compute_step()
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
         if idx % display_every_step == 0 or idx == optimize_steps-1:
-          tensor_to_image_file(result[0], path)
-          yield path
+          tensor_to_image_file(result[0], out_path)
+          print(f"step : {idx}")
+          print("\tloss : ", loss.item())
+          yield out_path
       
-      return path
