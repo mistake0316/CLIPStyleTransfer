@@ -29,7 +29,7 @@ I apply CLIP Loss on style transfer model's style code, then we can cost about 1
 
 ---
 # Experiments Describe
-![style transfer model](https://d3i71xaburhd42.cloudfront.net/7821cfd68b0b67e3c20dcbc82a71e77af9e09931/3-Figure2-1.png)
+![style transfer model](https://i.imgur.com/BS21e6o.png)
 > Image is in [Exploring the structure of a real-time, arbitrary neural artistic stylization network](https://arxiv.org/abs/1705.06830)
 
 In this repo, we edit the style code $\overrightarrow{S}$ with CLIP Loss : ```CLIP_model(T(c, S), text_prompt)```.
