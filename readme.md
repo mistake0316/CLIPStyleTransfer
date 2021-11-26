@@ -32,9 +32,9 @@ I apply CLIP Loss on style transfer model's style code, then we can cost about 1
 ![style transfer model](https://i.imgur.com/BS21e6o.png)
 > Image is in [Exploring the structure of a real-time, arbitrary neural artistic stylization network](https://arxiv.org/abs/1705.06830)
 
-In this repo, we edit the style code $\overrightarrow{S}$ with CLIP Loss : ```CLIP_model(T(c, S), text_prompt)```.
+In this repo, we edit the style code ```S``` with CLIP Loss : ```CLIP_model(T(c, S), text_prompt)```.
 
-For ***Augmentation Approach***, we augment $T(c, \overrightarrow{S})$ before compute CLIP loss.
+For ***Augmentation Approach***, we augment ```T(c, S)```$ before compute CLIP loss.
 
 I didn't upload some bad result implementation such as
 * Multiple Content image ```c```
