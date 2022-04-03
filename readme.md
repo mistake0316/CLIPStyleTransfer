@@ -21,7 +21,7 @@ I apply CLIP Loss on style transfer model's style code, then we can cost about 1
 ## Leopard
 ![Leopard](https://replicate.com/api/models/mistake0316/style-transfer-clip/files/e8ef20e6-8952-4d6d-aa53-39ecf5151735/out.png)
 
-## firewor
+## firework
 ![firework](https://replicate.com/api/models/mistake0316/style-transfer-clip/files/4fb41829-6d3e-4bd2-9fac-4264b53e2d0e/out.png)
 
 ## bubble tea
